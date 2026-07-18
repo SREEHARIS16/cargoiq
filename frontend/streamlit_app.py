@@ -1,14 +1,3 @@
-"""
-CargoIQ Dashboard
---------------------
-A lightweight interactive demo UI on top of the trained models.
-Can be run standalone (calls src/predict.py directly, no API needed)
-or pointed at the deployed FastAPI service via requests.
-
-Run:
-    streamlit run frontend/streamlit_app.py
-"""
-
 import sys
 from pathlib import Path
 import datetime
@@ -17,19 +6,16 @@ import pandas as pd
 import streamlit as st
 
 sys.path.append(str(Path(__file__).resolve().parent.parent / "src"))
-from predict import predict_for_route  # noqa: E402
+from bootstrap import ensure_pipeline_ready
+ensure_pipeline_ready()
+from predict import predict_for_route
 
 ROOT = Path(__file__).resolve().parent.parent
 RAW_PATH = ROOT / "data" / "raw" / "cargo_bookings.csv"
 
 st.set_page_config(page_title="CargoIQ", page_icon="✈️", layout="centered")
-
 st.title("✈️ CargoIQ — Air Cargo Demand & Dynamic Pricing")
-st.caption(
-    "Portfolio project inspired by IBS Software's iCargo platform "
-    "(air cargo demand forecasting + dynamic pricing engine). "
-    "All data is synthetic."
-)
+st.caption("Portfolio project inspired by IBS Software's iCargo platform. All data is synthetic.")
 
 df = pd.read_csv(RAW_PATH, parse_dates=["date"])
 routes = sorted(df["route_id"].unique())
@@ -44,7 +30,6 @@ with col2:
 
 target_date = st.date_input("Forecast date", datetime.date.today() + datetime.timedelta(days=1))
 
-# Pull the most recent real history for this route to auto-fill lag/rolling features
 hist = df[df["route_id"] == route_id].sort_values("date")
 recent = hist.tail(14)
 
@@ -69,27 +54,18 @@ else:
 
     if st.button("🔮 Predict demand & recommended price", type="primary"):
         payload = {
-            "route_id": route_id,
-            "cargo_type": cargo_type,
-            "date": str(target_date),
-            "distance_km": distance_km,
-            "capacity_tons": capacity_tons,
-            "fuel_index": fuel_index,
-            "demand_lag_1": demand_lag_1,
-            "demand_lag_7": demand_lag_7,
-            "demand_roll_mean_7": demand_roll_mean_7,
-            "demand_roll_mean_14": demand_roll_mean_14,
-            "rate_lag_1": rate_lag_1,
-            "rate_roll_mean_7": rate_roll_mean_7,
+            "route_id": route_id, "cargo_type": cargo_type, "date": str(target_date),
+            "distance_km": distance_km, "capacity_tons": capacity_tons, "fuel_index": fuel_index,
+            "demand_lag_1": demand_lag_1, "demand_lag_7": demand_lag_7,
+            "demand_roll_mean_7": demand_roll_mean_7, "demand_roll_mean_14": demand_roll_mean_14,
+            "rate_lag_1": rate_lag_1, "rate_roll_mean_7": rate_roll_mean_7,
         }
         result = predict_for_route(payload)
-
         st.subheader("2. Prediction")
         m1, m2, m3 = st.columns(3)
         m1.metric("Predicted demand", f"{result['predicted_demand_tons']} t")
         m2.metric("Recommended rate", f"${result['predicted_rate_per_kg']}/kg")
         m3.metric("Predicted utilization", f"{result['predicted_utilization']*100:.1f}%")
-
         st.info(f"**Recommended action:** {result['recommended_action']}")
 
     st.subheader("Recent demand trend")
